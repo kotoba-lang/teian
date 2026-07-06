@@ -2,6 +2,7 @@
   "Store contract against both backends — proving MemStore ≡ DatomicStore makes
   'swap the SSoT for Datomic / kotoba-server' a config change, not a rewrite."
   (:require [clojure.test :refer [deftest is testing]]
+            [teian.model :as model]
             [teian.store :as store]))
 
 (defn- backends [] [["MemStore" (store/seed-db)] ["DatomicStore" (store/datomic-seed-db)]])
@@ -28,6 +29,24 @@
       (store/append-ledger! s {:op :a :disposition :record})
       (store/append-ledger! s {:op :b :disposition :commit})
       (is (= [:record :commit] (mapv :disposition (store/ledger s)))))))
+
+(deftest seed-upserts-per-id-does-not-wipe-existing-artifacts
+  (testing "seed! is an idempotent per-id upsert (Store protocol contract), NOT a
+            wholesale replace of :artifacts — re-seeding with one new artifact must
+            leave every previously-seeded artifact untouched, on both backends"
+    (doseq [[label s] (backends)]
+      (testing label
+        (is (= ["act-board" "act-sales"] (mapv :id (store/all-artifacts s)))
+            "sanity: pre-seeded demo data present before either seed! call")
+        (store/seed! s {:artifacts {"act-new-a" (model/artifact "act-new-a"
+                                                  "gftdcojp/cloud-itonami" "A")}})
+        (is (= ["act-board" "act-new-a" "act-sales"] (mapv :id (store/all-artifacts s)))
+            "seeding with A must not drop act-board/act-sales")
+        (store/seed! s {:artifacts {"act-new-b" (model/artifact "act-new-b"
+                                                  "gftdcojp/cloud-itonami" "B")}})
+        (is (= ["act-board" "act-new-a" "act-new-b" "act-sales"]
+               (mapv :id (store/all-artifacts s)))
+            "seeding with B must not drop act-board/act-sales/act-new-a")))))
 
 (deftest datomic-empty-store-usable
   (let [s (store/datomic-store)]

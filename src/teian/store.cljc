@@ -59,7 +59,12 @@
       nil)
     s)
   (append-ledger! [_ fact] (swap! a update :ledger conj fact) fact)
-  (seed! [s data] (swap! a merge (select-keys data [:artifacts])) s))
+  (seed! [s data]
+    ;; per-id upsert (via the same record-datom! merge MemStore already uses
+    ;; for writes) — mirrors DatomicStore.seed! exactly, so seeding again with
+    ;; a new id never wipes out unrelated already-seeded artifacts.
+    (doseq [[id art] (:artifacts data)] (record-datom! s {:kind :artifact :id id :value art}))
+    s))
 
 (defn seed-db []
   (->MemStore (atom (assoc (demo-data) :drafts {} :ledger []))))

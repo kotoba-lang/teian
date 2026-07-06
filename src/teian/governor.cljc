@@ -31,6 +31,14 @@
       1. Subject exists    — the artifact must already be registered.
       2. Draft exists      — a draft must already have been committed (you
                              cannot publish what was never proposed).
+      3. Redaction (recheck)      — re-runs the redaction check against the
+                             CURRENTLY STORED draft (fetched fresh from the
+                             store, not trusted from the incoming proposal) —
+                             defense-in-depth against the draft having been
+                             revised between draft-time approval and this
+                             publish-time delivery.
+      4. Tenant-isolation (recheck) — same recheck, for the stored draft's
+                             :tenant vs. the artifact's own :repo.
     (any op) — an unrecognized :op is itself a hard violation (fail-closed:
                a not-yet-wired op must never silently pass as clean).
   SOFT:
@@ -86,8 +94,16 @@
                             (redaction-violations proposal)
                             (tenant-violations st artifact-id proposal))
                     :deck/publish
-                    (concat (missing-artifact-violations st artifact-id)
-                            (missing-draft-violations st artifact-id))
+                    ;; Re-fetch the draft straight from the store (ground
+                    ;; truth) rather than trusting `proposal`'s forwarded
+                    ;; cites/redactions/tenant — the whole point of the
+                    ;; recheck is to catch drift the untrusted advisor might
+                    ;; not faithfully carry forward.
+                    (let [current-draft (store/draft-of st artifact-id)]
+                      (concat (missing-artifact-violations st artifact-id)
+                              (missing-draft-violations st artifact-id)
+                              (when current-draft (redaction-violations current-draft))
+                              (when current-draft (tenant-violations st artifact-id current-draft))))
                     [{:rule :unrecognized-op :detail (str "未対応op: " op)}]))
         conf    (:confidence proposal 0.0)
         low?    (< conf confidence-floor)

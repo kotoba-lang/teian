@@ -158,6 +158,54 @@
           (is (= :commit (get-in r2 [:state :disposition])))
           (is (= :published (:status (store/draft-of s "act-board")))))))))
 
+;; ── publish-time recheck: redaction/tenant are re-verified against the
+;; CURRENTLY STORED draft at :deck/publish time, not trusted from draft-time
+;; approval alone (defense-in-depth against drift between the two) ──
+
+(deftest publish-recheck-happy-path
+  (testing "a clean draft with no drift publishes normally (recheck doesn't break the happy path)"
+    (let [[s actor] (fresh)
+          _  (run actor "recheck-ok-draft" {:op :deck/draft :artifact "act-board"} 3)
+          r1 (run actor "recheck-ok-pub" {:op :deck/publish :artifact "act-board"
+                                          :target "board@example.com"} 3)]
+      (is (= :interrupted (:status r1)) "still routes to a human — recheck doesn't skip sign-off")
+      (let [r2 (g/run* actor {:approval {:status :approved :by "cfo-alice"}}
+                       {:thread-id "recheck-ok-pub" :resume? true})]
+        (is (= :commit (get-in r2 [:state :disposition])))
+        (is (= :published (:status (store/draft-of s "act-board"))))))))
+
+(deftest publish-recheck-catches-post-draft-redaction-drift
+  (testing "a draft revised (out-of-band, bypassing governor) after draft-time approval to
+            add an unredacted sensitive cite is HELD at :deck/publish — the redaction fact
+            validated at draft-time is not blindly trusted at publish-time"
+    (let [[s actor] (fresh)
+          _ (run actor "recheck-redact-draft" {:op :deck/draft :artifact "act-board"} 3)]
+      (is (= :proposed (:status (store/draft-of s "act-board"))) "sanity: draft committed cleanly")
+      ;; simulate drift: the stored draft's content is revised directly (as if by a later,
+      ;; out-of-band process) to cite unredacted financial data.
+      (store/record-datom! s {:kind :draft :id "act-board"
+                              :value {:cites [:financial] :redactions []}})
+      (let [r1 (run actor "recheck-redact-pub" {:op :deck/publish :artifact "act-board"
+                                                :target "board@example.com"} 3)]
+        (is (= :hold (get-in r1 [:state :disposition]))
+            "hard violation short-circuits straight to hold, no human interrupt needed")
+        (is (some #{:missing-redaction} (-> (store/ledger s) last :basis)))
+        (is (not= :published (:status (store/draft-of s "act-board"))))))))
+
+(deftest publish-recheck-catches-post-draft-tenant-drift
+  (testing "a draft revised (out-of-band) after draft-time approval to a mismatched tenant
+            is HELD at :deck/publish"
+    (let [[s actor] (fresh)
+          _ (run actor "recheck-tenant-draft" {:op :deck/draft :artifact "act-board"} 3)]
+      (is (= :proposed (:status (store/draft-of s "act-board"))) "sanity: draft committed cleanly")
+      (store/record-datom! s {:kind :draft :id "act-board"
+                              :value {:tenant "someone-else/other-repo"}})
+      (let [r1 (run actor "recheck-tenant-pub" {:op :deck/publish :artifact "act-board"
+                                                :target "board@example.com"} 3)]
+        (is (= :hold (get-in r1 [:state :disposition])))
+        (is (some #{:tenant-mismatch} (-> (store/ledger s) last :basis)))
+        (is (not= :published (:status (store/draft-of s "act-board"))))))))
+
 (deftest reject-signoff-holds
   (testing "a human rejection of a publish records a hold, not a delivery"
     (let [[s actor] (fresh)
