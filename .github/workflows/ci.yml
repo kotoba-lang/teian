@@ -1,0 +1,43 @@
+name: ci
+
+# deps.edn's :dev alias overrides io.github.kotoba-lang/langchain to a sibling
+# local checkout (../langchain); deps.edn also references kotoba-lang/slides
+# via :local/root "../slides" unconditionally (teian holds slides.model EDN
+# verbatim, ADR-2607062000), so both siblings are checked out here. langgraph/
+# ed25519/ipns resolve via their pinned :git/sha directly (public kotoba-lang
+# repos). Until this standalone repo's Actions are enabled, the gates also run
+# in the west superproject: `clojure -M:lint` and `clojure -M:dev:test`.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: DeLaGuardo/setup-clojure@13.0
+        with: { cli: latest }
+      - run: clojure -M:lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: orgs/kotoba-lang/teian }
+      - uses: actions/checkout@v4
+        with: { repository: kotoba-lang/langchain, path: orgs/kotoba-lang/langchain }
+      - uses: actions/checkout@v4
+        with: { repository: kotoba-lang/slides, path: orgs/kotoba-lang/slides }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: DeLaGuardo/setup-clojure@13.0
+        with: { cli: latest }
+      - name: test (propose-only contract · store parity · CACAO crypto)
+        working-directory: orgs/kotoba-lang/teian
+        run: clojure -M:dev:test
