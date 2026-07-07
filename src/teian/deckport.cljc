@@ -16,9 +16,12 @@
   `:slides/deck` — best-effort: a `:doc`/`:sheet` kind, malformed content, or
   any failure to resolve/run the exporter simply degrades to no pptx bytes
   rather than failing the whole delivery (a preview render is a nicety, not
-  the actuation itself). The Distributor is a plain injected fn — teian does
-  not ship a live email/Slack client; the default just records what WOULD
-  have been distributed."
+  the actuation itself). The Distributor is a plain injected fn — the
+  default just records what WOULD have been distributed; a real one (e.g.
+  a live email Distributor) is caller-injected, opt-in, never silently
+  active. `teian.distribute/resend-distribute-fn` is one such real,
+  Resend-email-backed Distributor (JVM-only, touches the network) — inject
+  it via `mock-deckport`'s `distribute-fn` slot, see README.md."
   )
 
 (defprotocol DeckTarget
@@ -47,7 +50,13 @@
   delivered, without any network call. `distribute-fn` is called exactly
   once per publish! with {:activity :target :content :pptx-bytes?} — the
   default is a no-op (a real Distributor — email/Slack/etc — is caller-
-  injected, see docs/DESIGN.md; not shipped here)."
+  injected, see docs/DESIGN.md and teian.distribute/resend-distribute-fn;
+  not shipped here). When `distribute-fn` returns a map (a real Distributor
+  reporting e.g. a provider message-id), publish! merges it onto the
+  returned draft so teian.operation/commit-effects! can carry
+  delivery-tracking facts (e.g. :delivery/tool) forward onto the store +
+  ledger — the default no-op distribute-fn returns nil, so this is a no-op
+  for the mock/default path."
   ([] (mock-deckport (atom {}) (fn [_] nil)))
   ([delivered] (mock-deckport delivered (fn [_] nil)))
   ([delivered distribute-fn]
@@ -57,8 +66,8 @@
        {:branch (str "teian/" (:id activity))})
      (publish! [_ activity target draft]
        (let [content (:content draft)
-             pptx    (try-export-pptx content)]
-         (distribute-fn {:activity (:id activity) :target target
-                         :content content :pptx-bytes? (some? pptx)})
+             pptx    (try-export-pptx content)
+             result  (distribute-fn {:activity (:id activity) :target target
+                                     :content content :pptx-bytes? (some? pptx)})]
          (swap! delivered assoc (:id activity) content)
-         draft)))))
+         (cond-> draft (map? result) (merge (select-keys result [:delivery/tool :delivery/message-id]))))))))

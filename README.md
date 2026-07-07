@@ -73,6 +73,7 @@ disables drafting entirely → prints the briefing audit ledger → swaps to
 | `src/teian/phase.cljc` | **Phase 0→3** — ingest-only → assisted → assisted-draft → supervised (publish always human) |
 | `src/teian/operation.cljc` | **BriefingActor** — langgraph StateGraph; ingest vs assess flows |
 | `src/teian/deckport.cljc` | **DeckTarget** port (`fetch-deck`/`propose-revision!`/`publish!`) + `mock-deckport` (best-effort `slides.office` pptx export + injected Distributor fn) |
+| `src/teian/distribute.clj` | REAL email **Distributor** — `resend-distribute-fn` (Resend via `kotoba-lang/mailer` + `java.net.http`, JVM-only, opt-in — mock-deckport stays the default) |
 | `src/teian/cacao.clj` | agent-side **CACAO self-mint** (JVM Ed25519 + did:key + CBOR; per-actor key) |
 | `src/teian/kotoba.clj` | wire `DatomicStore` to a kotoba-server pod (kotobase.net XRPC) |
 | `src/teian/query.cljc` | pure status lookups (`draft-status`/`published?`) for callers that don't want to run the actor |
@@ -106,6 +107,20 @@ inject your own fn.
 (op/build store
   {:advisor (deckllm/llm-advisor (model/anthropic-model {:api-key … :http-fn … :json-write … :json-read …}))
    :deckport (deckport/mock-deckport (atom {}) my-real-distribute-fn)})
+
+;; the REAL Distributor this repo ships: Resend email (opt-in — the :deckport
+;; passed to op/build's opts is what actually wires it in; leaving :deckport
+;; unset keeps mock-deckport, i.e. no live send, ever)
+(require '[teian.distribute :as distribute])
+(op/build store
+  {:deckport (deckport/mock-deckport
+              (atom {})
+              (distribute/resend-distribute-fn {:from "ops@your-verified-sender.example"}))})
+;; RESEND_API_KEY must be set (env); :from must be a Resend-verified sender.
+;; publish! best-effort attaches a real pptx (kotoba-lang/slides's
+;; slides.office) when the draft's content is a :slides/deck; the returned
+;; {:delivery/tool "resend:<id>" ...} is threaded back through publish! and
+;; recorded on both the draft record and the :committed ledger fact's :tool.
 ```
 
 An unparseable/hallucinating LLM response falls to confidence 0 / noop, and

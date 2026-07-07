@@ -93,8 +93,10 @@
   checkpointed `record` content instead means the delivery is always exactly
   what was approved, unaffected by any later mutation.
 
-  Returns a map of extra store facts to merge in on success (currently just
-  `:deck/draft`'s returned :branch), or nil."
+  Returns a map of extra store facts to merge in on success (`:deck/draft`'s
+  returned :branch, or `:deck/publish`'s returned :delivery/tool when a real
+  Distributor — e.g. teian.distribute/resend-distribute-fn — reported one),
+  or nil."
   [deckport store {:keys [op artifact target]} record]
   (case op
     :deck/draft
@@ -102,9 +104,9 @@
           {:keys [branch]} (deckport/propose-revision! deckport art (get-in record [:value :content]))]
       (when branch {:kind :draft :id artifact :value {:branch branch}}))
     :deck/publish
-    (let [art (store/artifact store artifact)]
-      (deckport/publish! deckport art target (:value record))
-      nil)
+    (let [art (store/artifact store artifact)
+          {:keys [delivery/tool]} (deckport/publish! deckport art target (:value record))]
+      (when tool {:kind :draft :id artifact :value {:delivery/tool tool}}))
     nil))
 
 (defn build
@@ -189,8 +191,10 @@
           (let [extra (commit-effects! deckport store request record)]
             (store/record-datom! store record)
             (when extra (store/record-datom! store extra))
-            (let [f {:t :committed :op (:op request) :subject (subject request)
-                     :disposition :commit :basis (get-in record [:value :status] :proposed)}]
+            (let [f (cond-> {:t :committed :op (:op request) :subject (subject request)
+                             :disposition :commit :basis (get-in record [:value :status] :proposed)}
+                      (get-in extra [:value :delivery/tool])
+                      (assoc :tool (get-in extra [:value :delivery/tool])))]
               (store/append-ledger! store f)
               {:audit [f]}))))
 

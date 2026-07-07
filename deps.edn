@@ -15,7 +15,15 @@
         ;; teian does NOT reimplement the deck/doc/sheet EDN model — it holds
         ;; kotoba-lang/slides content verbatim as draft :content (ADR-2607062000).
         io.github.kotoba-lang/slides
-        {:local/root "../slides"}}
+        {:local/root "../slides"}
+        ;; real email Distributor (teian.distribute, opt-in — mock-deckport
+        ;; stays the default): mailer.core builds the Resend request shape
+        ;; (brings kotoba-lang/mail transitively); cheshire is the JSON codec
+        ;; cloud-itonami.mail's Resend integration uses, kept identical here.
+        io.github.kotoba-lang/mailer
+        {:local/root "../mailer"}
+        cheshire/cheshire
+        {:mvn/version "5.13.0"}}
  :aliases
  {;; offline workspace dev — pin transitive langchain to local checkout
   :dev {:override-deps
