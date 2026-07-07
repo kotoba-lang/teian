@@ -42,9 +42,13 @@
 
 (defn- pending-record
   "The store record a clean/approved assess op commits. :deck/draft stores
-  the proposal itself (verbatim slides EDN content); :deck/publish only
-  flips the already-stored draft's :status (the delivery is the EFFECT,
-  tracked separately by commit-effects!, not new draft content)."
+  the proposal itself (verbatim slides EDN content); :deck/publish flips the
+  already-stored draft's :status AND carries forward the proposal's
+  :content/:kind/:tenant/:cites/:redactions/:confidence — the same facts the
+  governor already vetted at govern-time for THIS request — so
+  commit-effects! can deliver that exact, already-checkpointed content
+  instead of re-reading (and potentially re-trusting a since-mutated) store
+  draft at commit time (TOCTOU fix)."
   [op proposal subj]
   (case op
     :deck/draft
@@ -56,7 +60,13 @@
                           :tenant (:tenant proposal)
                           :status :proposed})}
     :deck/publish
-    {:kind :draft :id subj :value {:status :published}}))
+    {:kind :draft :id subj
+     :value (assoc (model/draft subj (:kind proposal) (:content proposal)
+                                {:confidence (:confidence proposal)
+                                 :cites (:cites proposal)
+                                 :redactions (:redactions proposal)
+                                 :tenant (:tenant proposal)})
+                   :status :published)}))
 
 (defn- commit-effects!
   "Perform the op-specific EXTERNAL effect BEFORE anything is written to the
@@ -64,11 +74,24 @@
   no store mutation and no :committed ledger fact happen, so the store never
   durably claims a delivery that didn't actually occur.
 
-  `:deck/draft` reads its content from `record` (the commit about to be
-  written), NOT from the store — the store doesn't have it yet at this
-  point. `:deck/publish` reads the draft to deliver from the store, which is
-  safe: that content was already committed in an EARLIER run (`:deck/draft`),
-  not this one.
+  Both branches read content from `record` (the commit about to be
+  written), NEVER from a fresh `store/draft-of` re-read:
+
+  `:deck/draft` reads its content from `record` — the store doesn't have it
+  yet at this point anyway.
+
+  `:deck/publish` delivers `record`'s `:value`, which `pending-record`
+  carried forward verbatim from the `proposal` channel — the exact content
+  teian.governor/check already vetted for THIS approval request back at
+  govern-time (before :request-approval's human-in-the-loop interrupt). A
+  fresh `(store/draft-of store artifact)` re-read here would be a TOCTOU: the
+  human approved what they reviewed at govern-time, but if the stored draft
+  was mutated while the approval sat in the interrupt (e.g. a legitimate
+  concurrent :deck/draft revision landing on the same artifact — or an
+  out-of-band tamper bypassing the governor entirely), a re-read would
+  deliver whatever is CURRENTLY in the store, never re-governed. Using the
+  checkpointed `record` content instead means the delivery is always exactly
+  what was approved, unaffected by any later mutation.
 
   Returns a map of extra store facts to merge in on success (currently just
   `:deck/draft`'s returned :branch), or nil."
@@ -79,8 +102,8 @@
           {:keys [branch]} (deckport/propose-revision! deckport art (get-in record [:value :content]))]
       (when branch {:kind :draft :id artifact :value {:branch branch}}))
     :deck/publish
-    (let [art (store/artifact store artifact) d (store/draft-of store artifact)]
-      (deckport/publish! deckport art target d)
+    (let [art (store/artifact store artifact)]
+      (deckport/publish! deckport art target (:value record))
       nil)
     nil))
 

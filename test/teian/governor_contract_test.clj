@@ -8,9 +8,13 @@
             [langgraph.graph :as g]
             [teian.store :as store]
             [teian.deckllm :as deckllm]
+            [teian.deckport :as deckport]
             [teian.operation :as op]))
 
-(defn- fresh [] (let [s (store/seed-db)] [s (op/build s)]))
+(defn- fresh []
+  (let [s (store/seed-db) delivered (atom {}) distributed (atom [])
+        dp (deckport/mock-deckport delivered #(swap! distributed conj %))]
+    [s (op/build s {:deckport dp}) delivered distributed]))
 (defn- ctx [phase] {:phase phase})
 
 (defn- run [actor tid req phase]
@@ -205,6 +209,40 @@
         (is (= :hold (get-in r1 [:state :disposition])))
         (is (some #{:tenant-mismatch} (-> (store/ledger s) last :basis)))
         (is (not= :published (:status (store/draft-of s "act-board"))))))))
+
+(deftest publish-uses-governed-content-not-a-stale-commit-time-store-read
+  (testing "TOCTOU: mutating the stored draft (out-of-band, bypassing the governor) WHILE a
+            publish approval is pending must not let the tampered content slip into what
+            actually gets delivered — the human approved the ORIGINALLY governed content, so
+            that's what commit-effects! must hand to deckport/publish!, never a fresh
+            store/draft-of re-read at commit time"
+    (let [[s actor _delivered distributed] (fresh)
+          _  (run actor "toctou-draft" {:op :deck/draft :artifact "act-board"} 3)
+          original-content (:content (store/draft-of s "act-board"))
+          r1 (run actor "toctou-pub" {:op :deck/publish :artifact "act-board"
+                                      :target "board@example.com"} 3)]
+      (is (= :interrupted (:status r1)) "publishing always interrupts for human sign-off")
+      (is (empty? @distributed) "nothing distributed before sign-off")
+      ;; Simulate a store mutation landing on the SAME artifact while this publish approval
+      ;; sits in the interrupt queue — bypass the governor entirely and inject an unredacted
+      ;; sensitive cite plus tampered content.
+      (store/record-datom! s {:kind :draft :id "act-board"
+                              :value {:cites [:financial] :redactions []
+                                      :content (assoc original-content :tampered true)}})
+      (is (= [:financial] (:cites (store/draft-of s "act-board"))) "sanity: the tamper landed")
+      ;; Approve the ORIGINAL (pre-mutation) publish request.
+      (let [r2 (g/run* actor {:approval {:status :approved :by "cfo-alice"}}
+                       {:thread-id "toctou-pub" :resume? true})]
+        (is (= :commit (get-in r2 [:state :disposition])) "approving a clean, already-governed publish still commits")
+        (is (= 1 (count @distributed)) "publish! ran exactly once")
+        (is (= original-content (:content (last @distributed)))
+            "publish! delivered the ORIGINALLY governed content, unaffected by the later tamper")
+        (is (not (:tampered (:content (last @distributed))))
+            "the since-injected tampered content never reaches the DeckTarget")
+        (is (= :published (:status (store/draft-of s "act-board")))
+            "the store's own draft record is self-healed back to the governed content on commit")
+        (is (= original-content (:content (store/draft-of s "act-board")))
+            "commit also overwrites the tampered stored draft with the governed content")))))
 
 (deftest reject-signoff-holds
   (testing "a human rejection of a publish records a hold, not a delivery"
