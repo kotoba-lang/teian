@@ -18,8 +18,16 @@
   rather than failing the whole delivery (a preview render is a nicety, not
   the actuation itself). The Distributor is a plain injected fn — teian does
   not ship a live email/Slack client; the default just records what WOULD
-  have been distributed."
-  )
+  have been distributed.
+
+  `slack-deckport` below is one such opt-in Distributor (Slack
+  `chat.postMessage`, alongside a separately-landing Resend-email one) —
+  still not a replacement for mock-deckport, just another `distribute-fn`
+  a caller may inject into it. See README's 'Slack Distributor (owner setup
+  required)' section for what the human owner still has to do (register a
+  Slack app, obtain a bot token) before it is usable; no live Slack call is
+  made anywhere in this repo, including its test suite."
+  (:require [clojure.string :as str]))
 
 (defprotocol DeckTarget
   (fetch-deck [dt activity] "the artifact's currently delivered content, or nil")
@@ -62,3 +70,94 @@
                          :content content :pptx-bytes? (some? pptx)})
          (swap! delivered assoc (:id activity) content)
          draft)))))
+
+;; ───────────────────────── Slack (opt-in, real chat.postMessage) ─────────────────────────
+;;
+;; Mirrors tayori.channel.slack's already-real Slack Web API request shape
+;; (`Authorization: Bearer <bot-token>`, JSON POST body) — teian only ever
+;; needs the write side (`chat.postMessage`), not tayori's read side
+;; (`conversations.history`) for reply-drafting. Untested against a live
+;; workspace (no bot token exists yet — see README); the request-building
+;; itself is covered by test/teian/deckport_test.clj with an injected fake
+;; :http-fn, never a real network call.
+
+#?(:clj
+(defn- slack-jvm-http-fn
+  "Real java.net.http POST — {:url :method :headers :body} -> {:status
+  :body}, the same convention as cloudflare.client/jvm-http-fn and the
+  :http-fn tayori.channel.slack expects (JVM-only default; a cljs/SCI/WASM
+  host must inject its own :http-fn)."
+  [{:keys [url method headers body]}]
+  (let [builder (reduce-kv (fn [^java.net.http.HttpRequest$Builder b k v] (.header b k v))
+                           (java.net.http.HttpRequest/newBuilder (java.net.URI/create url))
+                           headers)
+        request (-> (case (or method :post)
+                      :post (.POST builder (java.net.http.HttpRequest$BodyPublishers/ofString (or body "")))
+                      :get  (.GET builder))
+                    .build)
+        resp    (.send (java.net.http.HttpClient/newHttpClient) request
+                       (java.net.http.HttpResponse$BodyHandlers/ofString))]
+    {:status (.statusCode resp) :body (.body resp)})))
+
+(defn- json-string-escape [s]
+  (-> (str s)
+      (str/replace "\\" "\\\\")
+      (str/replace "\"" "\\\"")
+      (str/replace "\r\n" "\\n")
+      (str/replace "\n" "\\n")
+      (str/replace "\r" "\\n")
+      (str/replace "\t" "\\t")))
+
+(defn- default-json-write
+  "Minimal flat {k v} -> JSON object string encoder — sufficient for
+  chat.postMessage's {:channel :text} payload (both plain strings, no
+  nesting), so this file adds no JSON library dependency. A caller wanting
+  a richer payload (e.g. `blocks`) should inject a real :json-write (e.g.
+  `clojure.data.json/write-str`) instead."
+  [m]
+  (str "{" (str/join "," (map (fn [[k v]] (str "\"" (name k) "\":\"" (json-string-escape v) "\"")) m)) "}"))
+
+(defn slack-deckport
+  "A Slack `chat.postMessage` Distributor for `mock-deckport`'s
+  `distribute-fn` slot — an opt-in alternative to the default no-op,
+  alongside (not replacing) a Resend-email Distributor landing separately.
+  Usage: `(mock-deckport (atom {}) (slack-deckport {:token \"xoxb-...\" :channel \"C0123...\"}))`.
+
+  `:token` (Slack bot token) and `:channel` (target channel id) are
+  owner-supplied constructor params — see README's 'Slack Distributor
+  (owner setup required)' section; NEVER hardcoded or env-guessed here.
+
+  Posts exactly one `chat.postMessage` per `publish!` call: a short text
+  notification (the deck's `:slides/title` + a note a deck was published,
+  and whether a pptx export was attempted) — never the deck bytes
+  themselves. Attaching the actual pptx would need Slack's separate,
+  more complex `files.upload` multipart endpoint; that's a deliberate
+  follow-up (see README), not a half-implemented guess here.
+
+  The per-call `:target` (this actor's generic recipient field, e.g. an
+  email address for the Resend Distributor) is intentionally NOT used for
+  channel routing — Slack delivery is a fixed operational binding (the bot
+  must already be invited to a channel, or have `chat:write.public`), not a
+  per-message address the way email is; `:channel` is fixed at
+  construction instead.
+
+  `:http-fn` / `:json-write` are injected for testability (default: a real
+  java.net.http POST / the minimal encoder above) — no live Slack call
+  happens anywhere in this repo's automated test suite (there is no bot
+  token to call with yet)."
+  [{:keys [token channel http-fn json-write]}]
+  (let [http-fn    (or http-fn
+                       #?(:clj slack-jvm-http-fn
+                          :cljs (fn [_] (throw (ex-info "slack-deckport: no :http-fn injected and no default HTTP transport on this host (JVM default is the built-in java.net.http POST; a cljs/SCI/WASM host must inject its own :http-fn)" {})))))
+        json-write (or json-write default-json-write)]
+    (fn [{:keys [activity content pptx-bytes?]}]
+      (let [title (or (:slides/title content) (str "activity " activity))
+            text  (str "Deck published: \"" title "\" (activity " activity ")"
+                       (if pptx-bytes?
+                         " — pptx export attempted."
+                         " — no pptx export (doc/sheet kind, or export unavailable)."))]
+        (http-fn {:url "https://slack.com/api/chat.postMessage"
+                  :method :post
+                  :headers {"Authorization" (str "Bearer " token)
+                            "Content-Type" "application/json; charset=utf-8"}
+                  :body (json-write {:channel channel :text text})})))))
