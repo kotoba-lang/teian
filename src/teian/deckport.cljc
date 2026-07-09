@@ -106,6 +106,33 @@
                        (java.net.http.HttpResponse$BodyHandlers/ofString))]
     {:status (.statusCode resp) :body (.body resp)})))
 
+(def ^:private json-hex-digits "0123456789abcdef")
+
+(defn- json-hex4
+  "4-digit hex for a JSON `\\uXXXX` escape (portable: bit ops + a lookup
+  table, no Long/Integer interop that would only work on :clj)."
+  [n]
+  (apply str (for [shift [12 8 4 0]] (nth json-hex-digits (bit-and (bit-shift-right n shift) 0xf)))))
+
+(defn- char-code-at [s i]
+  #?(:clj (int (.charAt ^String s (int i)))
+     :cljs (.charCodeAt s i)))
+
+(defn- escape-remaining-control-chars
+  "Escape any ASCII control character (U+0000-U+001F) still in `s` as
+  \\uXXXX. Called after the named replacements below have already turned
+  \\r/\\n/\\t into their own escape sequences, so only the control bytes
+  those don't cover -- \\b \\f and everything else in the C0 range -- are
+  left; RFC 8259 requires ALL of U+0000-U+001F to be escaped in a JSON
+  string, not just \\ \" \\r \\n \\t."
+  [s]
+  (apply str
+         (for [i (range (count s))]
+           (let [code (char-code-at s i)]
+             (if (< code 0x20)
+               (str "\\u" (json-hex4 code))
+               (subs s i (inc i)))))))
+
 (defn- json-string-escape [s]
   (-> (str s)
       (str/replace "\\" "\\\\")
@@ -113,7 +140,8 @@
       (str/replace "\r\n" "\\n")
       (str/replace "\n" "\\n")
       (str/replace "\r" "\\n")
-      (str/replace "\t" "\\t")))
+      (str/replace "\t" "\\t")
+      escape-remaining-control-chars))
 
 (defn- default-json-write
   "Minimal flat {k v} -> JSON object string encoder — sufficient for

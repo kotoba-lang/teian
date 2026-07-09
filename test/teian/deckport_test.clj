@@ -151,3 +151,18 @@
       (deckport/publish! dt {:id "act-5"} "board@example.com" {:content {:slides/title "Delivered Deck"}})
       (is (= {:slides/title "Delivered Deck"} (get @delivered "act-5")))
       (is (some? @captured) "the injected distribute-fn was actually called"))))
+
+(deftest slack-deckport-escapes-c0-control-chars-in-json-body
+  (testing "a title containing raw C0 control chars still produces a valid JSON body --
+            RFC 8259 requires escaping ALL of U+0000-U+001F, not just \\n/\\t"
+    (let [captured (atom nil)
+          distribute-fn (deckport/slack-deckport {:token "xoxb-test-token" :channel "C0123456"
+                                                   :http-fn (capturing-http-fn captured)})
+          title (str "Report " (char 7) " ready " (char 31) " now")]
+      (distribute-fn {:activity "act-6" :target "board@example.com"
+                      :content {:slides/title title} :pptx-bytes? true})
+      (let [body (:body @captured)]
+        (is (not (str/includes? body (str (char 7))))
+            "the raw bell character must not appear unescaped in the JSON body")
+        (is (str/includes? body "\\u0007"))
+        (is (str/includes? body "\\u001f"))))))
