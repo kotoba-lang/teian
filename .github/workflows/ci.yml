@@ -2,11 +2,14 @@ name: ci
 
 # deps.edn's :dev alias overrides io.github.kotoba-lang/langchain to a sibling
 # local checkout (../langchain); deps.edn also references kotoba-lang/slides
-# via :local/root "../slides" unconditionally (teian holds slides.model EDN
-# verbatim, ADR-2607062000), so both siblings are checked out here. langgraph/
-# ed25519/ipns resolve via their pinned :git/sha directly (public kotoba-lang
-# repos). Until this standalone repo's Actions are enabled, the gates also run
-# in the west superproject: `clojure -M:lint` and `clojure -M:dev:test`.
+# and kotoba-lang/mailer via :local/root unconditionally ("../slides",
+# "../mailer" -- teian holds slides.model EDN verbatim, ADR-2607062000, and
+# builds Resend request shapes via mailer.core), and mailer itself needs
+# kotoba-lang/mail (../mail), so all four siblings are checked out here.
+# langgraph/ed25519/ipns resolve via their pinned :git/sha
+# directly (public kotoba-lang repos). Until this standalone repo's Actions
+# are enabled, the gates also run in the west superproject:
+# `clojure -M:lint` and `clojure -M:dev:test`.
 
 on:
   push:
@@ -34,6 +37,10 @@ jobs:
         with: { repository: kotoba-lang/langchain, path: orgs/kotoba-lang/langchain }
       - uses: actions/checkout@v4
         with: { repository: kotoba-lang/slides, path: orgs/kotoba-lang/slides }
+      - uses: actions/checkout@v4
+        with: { repository: kotoba-lang/mailer, path: orgs/kotoba-lang/mailer }
+      - uses: actions/checkout@v4
+        with: { repository: kotoba-lang/mail, path: orgs/kotoba-lang/mail }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21" }
       - uses: DeLaGuardo/setup-clojure@13.0
