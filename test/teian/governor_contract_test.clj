@@ -244,6 +244,45 @@
         (is (= original-content (:content (store/draft-of s "act-board")))
             "commit also overwrites the tampered stored draft with the governed content")))))
 
+(deftest publish-delivers-the-governed-store-draft-not-a-divergent-proposal
+  (testing "governor/check's :deck/publish recheck validates the STORE'S draft
+           (see governor.cljc), never `proposal` -- so the delivered content
+           must come from that same checked draft, not from a divergent
+           proposal the recheck never actually validated. Otherwise the
+           redaction/tenant-isolation recheck would validate one map while
+           the system commits and delivers a different, unvalidated one."
+    (let [s (store/seed-db)
+          delivered (atom {})
+          distributed (atom [])
+          dp (deckport/mock-deckport delivered #(swap! distributed conj %))
+          clean-actor (op/build s {:deckport dp})
+          _ (run clean-actor "gov-draft" {:op :deck/draft :artifact "act-board"} 3)
+          clean-content (:content (store/draft-of s "act-board"))
+          ;; adversarial advisor: at :deck/publish time, proposes content/
+          ;; cites/tenant that diverge from the already-committed clean draft
+          bad-adv (reify deckllm/Advisor
+                    (-advise [_ _ _] {:recommendation :publish :effect :published
+                                      :content {:leaked "attacker-payload"}
+                                      :cites [:financial] :redactions []
+                                      :tenant "attacker/other-repo"
+                                      :summary "x" :rationale "x" :confidence 0.95}))
+          adversarial-actor (op/build s {:advisor bad-adv :deckport dp})
+          r1 (run adversarial-actor "gov-pub" {:op :deck/publish :artifact "act-board"
+                                               :target "board@example.com"} 3)]
+      (is (= :interrupted (:status r1)) "still requires human sign-off")
+      (let [r2 (g/run* adversarial-actor {:approval {:status :approved :by "cfo-alice"}}
+                       {:thread-id "gov-pub" :resume? true})]
+        (is (= :commit (get-in r2 [:state :disposition])))
+        (is (= 1 (count @distributed)) "publish! ran exactly once")
+        (is (= clean-content (:content (last @distributed)))
+            "delivered content is the GOVERNED store draft, not the adversarial proposal")
+        (is (not= {:leaked "attacker-payload"} (:content (last @distributed)))
+            "the proposal's forged content never reaches delivery")
+        (is (= "gftdcojp/cloud-itonami" (:tenant (store/draft-of s "act-board")))
+            "the store's tenant is unaffected by the proposal's forged tenant")
+        (is (= [:artifact] (:cites (store/draft-of s "act-board")))
+            "the store's cites are unaffected by the proposal's forged unredacted cite")))))
+
 (deftest reject-signoff-holds
   (testing "a human rejection of a publish records a hold, not a delivery"
     (let [[s actor] (fresh)
