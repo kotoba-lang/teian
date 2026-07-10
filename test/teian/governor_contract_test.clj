@@ -46,6 +46,21 @@
       (is (= :proposed (:status (store/draft-of s "act-board"))))
       (is (= "gftdcojp/cloud-itonami" (:tenant (store/draft-of s "act-board")))))))
 
+(deftest missing-phase-context-does-not-grant-max-autonomy
+  ;; default-phase is the fallback both when :phase is entirely absent
+  ;; from context (teian.operation) and when an unrecognized phase
+  ;; number is passed (phase/gate). It used to be 3 -- where
+  ;; :deck/draft can auto-commit -- so a caller that simply forgot to
+  ;; set :phase silently got MAXIMUM autonomy instead of the safe
+  ;; "start narrow" default.
+  (testing "omitting :phase from context still requires human approval on a clean draft"
+    (let [[s actor] (fresh)
+          res (g/run* actor {:request {:op :deck/draft :artifact "act-board"} :context {}}
+                      {:thread-id "mp"})]
+      (is (not= :commit (get-in res [:state :disposition]))
+          "a clean draft must not auto-commit when :phase is unset")
+      (is (nil? (store/draft-of s "act-board")) "SSoT untouched without explicit phase"))))
+
 (deftest draft-requires-human-at-phase1
   (testing "phase 1: drafting is allowed but never auto-commits"
     (let [[_ actor] (fresh)
