@@ -51,7 +51,7 @@
                      (java.net.http.HttpResponse$BodyHandlers/ofString))]
       {:status (.statusCode resp) :body (.body resp)})))
 
-(defn- try-pptx-bytes
+(defn try-pptx-bytes
   "Best-effort real pptx export via kotoba-lang/slides's slides.office —
   mirrors teian.deckport/try-export-pptx exactly (lazily resolved so a
   :doc/:sheet content, or any failure anywhere in the office/ooxml/
