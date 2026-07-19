@@ -59,6 +59,27 @@
     (is (= draft result))
     (is (= 1 (count @distributed)))))
 
+(deftest publish-uses-only-an-explicitly-injected-export-capability
+  (let [seen (atom [])
+        exporter (fn [content] (swap! seen conj content) (.getBytes "pptx" "UTF-8"))
+        distributed (atom nil)
+        dp (deckport/mock-deckport (atom {}) #(reset! distributed %) exporter)
+        art (model/artifact "a1" "gftdcojp/cloud-itonami" "T")
+        content {:slides/kind :slides/deck :slides/title "Safe"}]
+    (deckport/publish! dp art "board@example.com"
+                       (model/draft "a1" :deck content {:status :published}))
+    (is (= [content] @seen))
+    (is (true? (:pptx-bytes? @distributed)))))
+
+(deftest publish-does-not-discover-an-exporter-ambiently
+  (let [distributed (atom nil)
+        dp (deckport/mock-deckport (atom {}) #(reset! distributed %))
+        art (model/artifact "a1" "gftdcojp/cloud-itonami" "T")]
+    (deckport/publish! dp art "board@example.com"
+                       (model/draft "a1" :deck {:slides/kind :slides/deck}
+                                    {:status :published}))
+    (is (false? (:pptx-bytes? @distributed)))))
+
 ;; ───────────────── full pipeline: publish! -> ledger's :tool ─────────────────
 
 (defn- run [actor tid req phase]

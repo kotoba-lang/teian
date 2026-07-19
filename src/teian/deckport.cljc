@@ -12,9 +12,9 @@
   actor is runnable/testable with no network/creds (ADR-2607062000
   Consequences: real Distributor clients need per-provider API tokens, live
   binding is out of scope here). `publish!` optionally exports real pptx
-  bytes via `kotoba-lang/slides`'s `slides.office` when the content is a
+  bytes through an explicitly injected exporter when the content is a
   `:slides/deck` — best-effort: a `:doc`/`:sheet` kind, malformed content, or
-  any failure to resolve/run the exporter simply degrades to no pptx bytes
+  any exporter failure simply degrades to no pptx bytes
   rather than failing the whole delivery (a preview render is a nicety, not
   the actuation itself). The Distributor is a plain injected fn — the
   default just records what WOULD have been distributed; a real one is
@@ -36,18 +36,12 @@
   (publish! [dt activity target draft] "export + distribute an already human-approved draft (the store's :draft record) — the actuation"))
 
 (defn- try-export-pptx
-  "Best-effort real pptx export via kotoba-lang/slides's `slides.office` —
-  decks only. Resolved lazily (`requiring-resolve`, JVM) so a `:doc`/`:sheet`
-  draft, a cljs host, or any failure anywhere in the office/ooxml/
-  drawingml/presentationml toolchain degrades to nil instead of throwing —
-  publish! must not fail the actuation just because a preview render
-  couldn't be produced."
-  [content]
-  (when (= :slides/deck (:slides/kind content))
+  "Invoke an explicitly granted deck exporter. Keeping namespace loading out
+  of this portable component makes the host capability boundary auditable."
+  [export-pptx-fn content]
+  (when (and export-pptx-fn (= :slides/deck (:slides/kind content)))
     (try
-      #?(:clj (when-let [f (requiring-resolve 'slides.office/pptx-bytes-from-deck-edn)]
-                (f (pr-str content)))
-         :cljs nil)
+      (export-pptx-fn content)
       (catch #?(:clj Exception :cljs :default) _ nil))))
 
 (defn mock-deckport
@@ -63,16 +57,17 @@
   delivery-tracking facts (e.g. :delivery/tool) forward onto the store +
   ledger — the default no-op distribute-fn returns nil, so this is a no-op
   for the mock/default path."
-  ([] (mock-deckport (atom {}) (fn [_] nil)))
-  ([delivered] (mock-deckport delivered (fn [_] nil)))
-  ([delivered distribute-fn]
+  ([] (mock-deckport (atom {}) (fn [_] nil) nil))
+  ([delivered] (mock-deckport delivered (fn [_] nil) nil))
+  ([delivered distribute-fn] (mock-deckport delivered distribute-fn nil))
+  ([delivered distribute-fn export-pptx-fn]
    (reify DeckTarget
      (fetch-deck [_ activity] (get @delivered (:id activity)))
      (propose-revision! [_ activity _content]
        {:branch (str "teian/" (:id activity))})
      (publish! [_ activity target draft]
        (let [content (:content draft)
-             pptx    (try-export-pptx content)
+             pptx    (try-export-pptx export-pptx-fn content)
              result  (distribute-fn {:activity (:id activity) :target target
                                      :content content :pptx-bytes? (some? pptx)})]
          (swap! delivered assoc (:id activity) content)

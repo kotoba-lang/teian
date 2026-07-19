@@ -5,7 +5,8 @@ name: ci
 # and kotoba-lang/mailer via :local/root unconditionally ("../slides",
 # "../mailer" -- teian holds slides.model EDN verbatim, ADR-2607062000, and
 # builds Resend request shapes via mailer.core), and mailer itself needs
-# kotoba-lang/mail (../mail), so all four siblings are checked out here.
+# kotoba-lang/mail (../mail). slides also has unconditional west-local UI
+# dependencies, so its four direct siblings are checked out here as well.
 # langgraph/ed25519/ipns resolve via their pinned :git/sha
 # directly (public kotoba-lang repos). Until this standalone repo's Actions
 # are enabled, the gates also run in the west superproject:
@@ -37,6 +38,14 @@ jobs:
         with: { repository: kotoba-lang/langchain, path: orgs/kotoba-lang/langchain }
       - uses: actions/checkout@v4
         with: { repository: kotoba-lang/slides, path: orgs/kotoba-lang/slides }
+      - uses: actions/checkout@v4
+        with: { repository: kotoba-lang/kotoba-ui, path: orgs/kotoba-lang/kotoba-ui }
+      - uses: actions/checkout@v4
+        with: { repository: kotoba-lang/appkit, path: orgs/kotoba-lang/appkit }
+      - uses: actions/checkout@v4
+        with: { repository: kotoba-lang/liquid-glass-ui, path: orgs/kotoba-lang/liquid-glass-ui }
+      - uses: actions/checkout@v4
+        with: { repository: kotoba-lang/shitsuke, path: orgs/kotoba-lang/shitsuke }
       - uses: actions/checkout@v4
         with: { repository: kotoba-lang/mailer, path: orgs/kotoba-lang/mailer }
       - uses: actions/checkout@v4
