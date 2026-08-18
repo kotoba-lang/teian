@@ -3,7 +3,8 @@
  ;; all .cljc → portable to JVM / SCI / ClojureScript / GraalVM). Same runtime
  ;; kekkai/tayori ride on; a briefing/deck-drafting control plane is just
  ;; another sealed-intelligence ⊣ independent-governor StateGraph.
- :deps {io.github.kotoba-lang/langgraph
+ :deps {
+        io.github.kotoba-lang/json {:git/sha "4c55a247b020bfb1c7b5b09f9df8f3fa5601a207"}io.github.kotoba-lang/langgraph
         {:git/url "https://github.com/kotoba-lang/langgraph.git"
          :sha "5b4e5e70837b849b14b6a5800894e3be202ad5fa"}
         ;; canonical did:key + IPNS-name derivation (ADR-2607050100) — same
@@ -24,8 +25,7 @@
         io.github.kotoba-lang/mailer
         {:git/url "https://github.com/kotoba-lang/mailer.git"
          :git/sha "64a5e4e6f7307c582f3d0d74eca4f6cadade9a5b"}
-        cheshire/cheshire
-        {:mvn/version "5.13.0"}}
+}
  :aliases
  {;; offline workspace dev — pin transitive langchain to local checkout
   :dev {:override-deps
