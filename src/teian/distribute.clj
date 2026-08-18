@@ -23,7 +23,7 @@
   `attachments` array directly, per Resend's documented wire format, instead
   of reinventing the rest of the request (from/to/subject/url/auth all still
   come from `mailer.core`/`mail.message`)."
-  (:require [cheshire.core :as json]
+  (:require [json.compat :as json]
             [clojure.string :as str]
             [mail.message :as message]
             [mailer.core :as mailer]))
