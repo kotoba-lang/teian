@@ -11,7 +11,7 @@
   workspace's other real-binding-but-untested clients (e.g.
   tayori.channel.slack)."
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [langgraph.graph :as g]
             [teian.deckport :as deckport]
             [teian.model :as model]
