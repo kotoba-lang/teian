@@ -11,7 +11,7 @@
   The kotobase.net datomic endpoints are auth-gated — pass :token (Bearer JWT)
   or :cacao + :did. A live run therefore needs a credential; the store contract
   itself is already proven backend-agnostic (test/teian/store_contract_test)."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [langchain.kotoba-db :as kdb]
             [teian.cacao :as cacao]
             [teian.store :as store])
@@ -26,7 +26,7 @@
   [{:keys [url method headers body]}]
   (let [b (HttpRequest/newBuilder (URI/create url))]
     (doseq [[k v] headers] (.header b k v))
-    (let [req  (-> b (.method (str/upper-case (name (or method :post)))
+    (let [req  (-> b (.method (str/upper (name (or method :post)))
                              (if body
                                (HttpRequest$BodyPublishers/ofString body)
                                (HttpRequest$BodyPublishers/noBody)))

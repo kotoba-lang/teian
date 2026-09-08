@@ -28,7 +28,7 @@
   human owner still has to do before it's usable). Neither replaces
   `mock-deckport` as the default; inject either via `mock-deckport`'s
   `distribute-fn` slot."
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (defprotocol DeckTarget
   (fetch-deck [dt activity] "the artifact's currently delivered content, or nil")

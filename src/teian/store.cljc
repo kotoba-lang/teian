@@ -21,7 +21,7 @@
   property a mutable slide-deck folder can't give you."
   (:require #?(:clj  [clojure.edn :as edn]
                :cljs [cljs.reader :as edn])
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [langchain.db :as d]
             [teian.model :as model]))
 

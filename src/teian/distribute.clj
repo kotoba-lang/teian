@@ -24,7 +24,7 @@
   of reinventing the rest of the request (from/to/subject/url/auth all still
   come from `mailer.core`/`mail.message`)."
   (:require [json.compat :as json]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [mail.message :as message]
             [mailer.core :as mailer]))
 

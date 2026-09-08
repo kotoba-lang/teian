@@ -15,7 +15,7 @@
   hand-off, no shared token, no coordination-server-issued auth-key.
   Use `load-or-create-identity!` to bootstrap/persist the actor's identity."
   (:require [clojure.edn :as edn]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [ed25519.core :as ed25519]
             [ipns.core :as ipns])
   (:import [java.security KeyPairGenerator Signature KeyFactory]
