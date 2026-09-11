@@ -65,20 +65,20 @@ disables drafting entirely → prints the briefing audit ledger → swaps to
 
 | File | Role |
 |---|---|
-| `src/teian/model.cljc` | pure **draft**/**artifact** data shapes — `content` is verbatim `kotoba-lang/slides` EDN, never teian's own representation |
-| `src/teian/store.cljc` | **Store** protocol — `MemStore` ‖ `DatomicStore` (`langchain.db`, swappable to Datomic Local / kotoba-server) + append-only **briefing audit ledger** |
-| `src/teian/policy.cljc` | pure checks (sensitive-cite redaction requirement · tenant mismatch) — shared by governor & deck-LLM, no I/O |
-| `src/teian/deckllm.cljc` | **deck-LLM Advisor** — `mock-advisor` ‖ `llm-advisor` (`langchain.model`); draft/publish proposals |
-| `src/teian/governor.cljc` | **BriefingGovernor** — no-actuation · redaction-required · tenant-isolation · high-stakes |
-| `src/teian/phase.cljc` | **Phase 0→3** — ingest-only → assisted → assisted-draft → supervised (publish always human) |
-| `src/teian/operation.cljc` | **BriefingActor** — langgraph StateGraph; ingest vs assess flows |
-| `src/teian/deckport.cljc` | **DeckTarget** port (`fetch-deck`/`propose-revision!`/`publish!`) + `mock-deckport` (best-effort `slides.office` pptx export + injected Distributor fn) |
-| `src/teian/distribute.clj` | REAL email **Distributor** — `resend-distribute-fn` (Resend via `kotoba-lang/mailer` + `java.net.http`, JVM-only, opt-in — mock-deckport stays the default) |
-| `src/teian/cacao.clj` | agent-side **CACAO self-mint** (JVM Ed25519 + did:key + CBOR; per-actor key) |
-| `src/teian/kotoba.clj` | wire `DatomicStore` to a kotoba-server pod (kotobase.net XRPC) |
-| `src/teian/query.cljc` | pure status lookups (`draft-status`/`published?`) for callers that don't want to run the actor |
-| `src/teian/sim.cljc` | demo driver |
-| `src/teian/cli.clj` | minimal JVM status-check entrypoint |
+| `src/teian/model.cljk` | pure **draft**/**artifact** data shapes — `content` is verbatim `kotoba-lang/slides` EDN, never teian's own representation |
+| `src/teian/store.cljk` | **Store** protocol — `MemStore` ‖ `DatomicStore` (`langchain.db`, swappable to Datomic Local / kotoba-server) + append-only **briefing audit ledger** |
+| `src/teian/policy.cljk` | pure checks (sensitive-cite redaction requirement · tenant mismatch) — shared by governor & deck-LLM, no I/O |
+| `src/teian/deckllm.cljk` | **deck-LLM Advisor** — `mock-advisor` ‖ `llm-advisor` (`langchain.model`); draft/publish proposals |
+| `src/teian/governor.cljk` | **BriefingGovernor** — no-actuation · redaction-required · tenant-isolation · high-stakes |
+| `src/teian/phase.cljk` | **Phase 0→3** — ingest-only → assisted → assisted-draft → supervised (publish always human) |
+| `src/teian/operation.cljk` | **BriefingActor** — langgraph StateGraph; ingest vs assess flows |
+| `src/teian/deckport.cljk` | **DeckTarget** port (`fetch-deck`/`propose-revision!`/`publish!`) + `mock-deckport` (best-effort `slides.office` pptx export + injected Distributor fn) |
+| `src/teian/distribute.cljk` | REAL email **Distributor** — `resend-distribute-fn` (Resend via `kotoba-lang/mailer` + `java.net.http`, JVM-only, opt-in — mock-deckport stays the default) |
+| `src/teian/cacao.cljk` | agent-side **CACAO self-mint** (JVM Ed25519 + did:key + CBOR; per-actor key) |
+| `src/teian/kotoba.cljk` | wire `DatomicStore` to a kotoba-server pod (kotobase.net XRPC) |
+| `src/teian/query.cljk` | pure status lookups (`draft-status`/`published?`) for callers that don't want to run the actor |
+| `src/teian/sim.cljk` | demo driver |
+| `src/teian/cli.cljk` | minimal JVM status-check entrypoint |
 | `test/teian/*_test.clj` | propose-only contract · store parity (Mem≡Datomic) · CACAO |
 
 ## DeckTarget → real backend (injection)
