@@ -50,9 +50,9 @@ have already published); a clean publish still routes to a human.
 ## Run
 
 ```bash
-clojure -M:dev:run     # drive: draft → publish through the actor
-clojure -M:dev:test    # the propose-only contract + store parity + CACAO crypto
-clojure -M:lint        # clj-kondo (errors fail)
+kbb -M:dev:run     # drive: draft → publish through the actor
+kbb -M:dev:test    # the propose-only contract + store parity + CACAO crypto
+kbb -M:lint        # clj-kondo (errors fail)
 ```
 
 Demo: register an artifact (observe → ground fact) → draft a briefing for a

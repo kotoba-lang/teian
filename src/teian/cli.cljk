@@ -4,7 +4,7 @@
   process boundary consumer that needs one artifact's draft status without
   an in-process require across runtimes.
 
-  Usage: `clojure -M -m teian.cli <ledger.edn> <artifact-id>` — prints the
+  Usage: `kbb -M -m teian.cli <ledger.edn> <artifact-id>` — prints the
   draft status (\"proposed\"/\"published\"/\"none\") and exits 0 on
   \"published\", 1 otherwise (so callers can also just check the exit code).
 

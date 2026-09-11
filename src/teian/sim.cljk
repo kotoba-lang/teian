@@ -6,7 +6,7 @@
     publish act-board delivering is always high-stakes → human sign-off → mock-deckport delivers
     phase 0       draft in ingest-only phase → held (phase-disabled)
 
-  Run: clojure -M:dev:run"
+  Run: kbb -M:dev:run"
   (:require [langgraph.graph :as g]
             [teian.store :as store]
             [teian.deckport :as deckport]
