@@ -1,5 +1,5 @@
 (ns teian.query-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [teian.query :as query]
             [teian.store :as store]))
 

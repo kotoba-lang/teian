@@ -6,7 +6,7 @@
   signature over the exact SIWE message, and a well-formed CBOR envelope. The
   per-actor key model is the teian/kekkai/tayori analog — the key IS the
   identity."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotoba.lang.text :as str]
             [teian.cacao :as c])
   (:import [java.util Base64]
