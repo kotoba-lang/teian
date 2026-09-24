@@ -11,7 +11,7 @@
   <ledger.edn> holds the same shape as `teian.store/demo-data`'s :artifacts
   map plus an optional :drafts map (at minimum
   {:drafts {\"<artifact-id>\" {:status :published}}})."
-  (:require [clojure.edn :as edn]
+  (:require [kotoba.lang.edn :as edn]
             [teian.query :as query]
             [teian.store :as store]))
 

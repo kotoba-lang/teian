@@ -19,7 +19,7 @@
   Charter: the append-only **ledger is teian's briefing audit trail** (who
   drafted what, on what basis, who approved delivering it, when) — the
   property a mutable slide-deck folder can't give you."
-  (:require #?(:clj  [clojure.edn :as edn]
+  (:require #?(:clj  [kotoba.lang.edn :as edn]
                :cljs [cljs.reader :as edn])
             [kotoba.lang.text :as str]
             [langchain.db :as d]
