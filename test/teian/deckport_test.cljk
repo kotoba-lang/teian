@@ -10,7 +10,7 @@
   the request map, the same fake-http-fn testing shape used across this
   workspace's other real-binding-but-untested clients (e.g.
   tayori.channel.slack)."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotoba.lang.text :as str]
             [langgraph.graph :as g]
             [teian.deckport :as deckport]

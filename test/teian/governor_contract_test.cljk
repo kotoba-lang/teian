@@ -4,7 +4,7 @@
   contract test. Invariant: the actor never delivers a deck/doc/sheet the
   BriefingGovernor would reject, deck-LLM never actuates directly, and
   `:deck/publish` is always a human call regardless of phase."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [langgraph.graph :as g]
             [teian.store :as store]
             [teian.deckllm :as deckllm]

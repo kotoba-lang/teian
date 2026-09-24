@@ -4,7 +4,7 @@
   transport convention) — NOT hitting the real network. The one real live
   send this feature needs is a manual, one-time verification step, never
   part of this suite."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [slides.model :as slides]
             [teian.distribute :as distribute]))
 
