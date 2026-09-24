@@ -14,14 +14,13 @@
   actor's own DID = graph owner) is authorized by construction — no owner
   hand-off, no shared token, no coordination-server-issued auth-key.
   Use `load-or-create-identity!` to bootstrap/persist the actor's identity."
-  (:require [kotoba.lang.edn :as edn]
+  (:require [kotoba.bytes :as kbytes] [kotoba.io :as kio] [kotoba.lang.edn :as edn]
             [kotoba.lang.text :as str]
             [ed25519.core :as ed25519]
             [ipns.core :as ipns])
   (:import [java.security KeyPairGenerator Signature KeyFactory]
            [java.security.spec PKCS8EncodedKeySpec X509EncodedKeySpec]
-           [java.io ByteArrayOutputStream]
-           [java.util Base64]))
+           [java.io ByteArrayOutputStream]))
 
 ;; ───────── pure CACAO builders (mirror of kotoba.cacao) ─────────
 
@@ -72,7 +71,7 @@
 
 (defn- cbor-val [^ByteArrayOutputStream o v]
   (cond
-    (string? v)     (let [b (.getBytes ^String v "UTF-8")] (cbor-head o 3 (alength b)) (.write o b 0 (alength b)))
+    (string? v)     (let [b (kbytes/utf8-bytes ^String v)] (cbor-head o 3 (alength b)) (.write o b 0 (alength b)))
     (map? v)        (do (cbor-head o 5 (count v)) (doseq [[k vv] v] (cbor-val o (name k)) (cbor-val o vv)))
     (sequential? v) (do (cbor-head o 4 (count v)) (doseq [x v] (cbor-val o x)))
     :else           (cbor-val o (str v))))
@@ -106,15 +105,15 @@
   (let [kp (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519"))
         pub (.getPublic kp)]
     {:private-key (.getPrivate kp) :public-key pub :did (did-key pub) :graph (ipns-name pub)
-     :private-b64 (.encodeToString (Base64/getEncoder) (.getEncoded (.getPrivate kp)))
-     :public-b64  (.encodeToString (Base64/getEncoder) (.getEncoded pub))}))
+     :private-b64 (kbytes/base64-encode (.getEncoded (.getPrivate kp)))
+     :public-b64  (kbytes/base64-encode (.getEncoded pub))}))
 
 (defn load-identity
   "Reload a persisted identity from base64 PKCS8 private + X.509 public."
   [{:keys [private-b64 public-b64]}]
   (let [kf (KeyFactory/getInstance "Ed25519")
-        priv (.generatePrivate kf (PKCS8EncodedKeySpec. (.decode (Base64/getDecoder) private-b64)))
-        pub  (.generatePublic kf (X509EncodedKeySpec. (.decode (Base64/getDecoder) public-b64)))]
+        priv (.generatePrivate kf (PKCS8EncodedKeySpec. (kbytes/base64-decode-bytes private-b64)))
+        pub  (.generatePublic kf (X509EncodedKeySpec. (kbytes/base64-decode-bytes public-b64)))]
     {:private-key priv :public-key pub :did (did-key pub) :graph (ipns-name pub)
      :private-b64 private-b64 :public-b64 public-b64}))
 
@@ -123,12 +122,12 @@
   persist one on first run (only the b64 key material is stored). Returns
   {:private-key :public-key :did :graph …}."
   [path]
-  (let [f (java.io.File. ^String path)]
-    (if (.exists f)
+  (let [f (kio/file ^String path)]
+    (if (kio/exists? f)
       (load-identity (edn/read-string (slurp f)))
       (let [id (generate-identity)
-            parent (.getParentFile (.getAbsoluteFile f))]
-        (when parent (.mkdirs parent))
+            parent (kio/parent-file (kio/absolute-file f))]
+        (when parent (kio/mkdirs parent))
         (spit f (pr-str (select-keys id [:private-b64 :public-b64])))
         id))))
 
@@ -149,7 +148,7 @@
   (let [payload (grant->payload grant {:iss did :aud aud :nonce nonce
                                        :issued-at issued-at :expiry expiry})
         msg     (siwe-message payload)
-        sig     (ed-sign private-key (.getBytes ^String msg "UTF-8"))
-        sig-b64 (.encodeToString (.withoutPadding (Base64/getUrlEncoder)) sig)
+        sig     (ed-sign private-key (kbytes/utf8-bytes ^String msg))
+        sig-b64 (kbytes/base64url-encode sig {:pad? false})
         wire    (->wire payload sig-b64)]
-    (.encodeToString (Base64/getEncoder) (cbor-bytes wire))))
+    (kbytes/base64-encode (cbor-bytes wire))))

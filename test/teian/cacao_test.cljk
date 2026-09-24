@@ -6,10 +6,10 @@
   signature over the exact SIWE message, and a well-formed CBOR envelope. The
   per-actor key model is the teian/kekkai/tayori analog — the key IS the
   identity."
-  (:require [kotoba.test :refer [deftest is testing]]
+  (:require [kotoba.bytes :as kbytes] [kotoba.io :as kio] [kotoba.test :refer [deftest is testing]]
             [kotoba.lang.text :as str]
             [teian.cacao :as c])
-  (:import [java.util Base64]
+  (:import
            [java.security Signature]))
 
 (deftest did-key-is-canonical-ed25519
@@ -28,7 +28,7 @@
           grant {:cap :cap/read :scope "teian"}
           opts  {:aud "https://kotobase.net" :nonce "n1" :issued-at "2026-07-06T00:00:00Z"}
           payload (c/grant->payload grant (assoc opts :iss (:did id)))
-          msg   (.getBytes ^String (c/siwe-message payload) "UTF-8")
+          msg   (kbytes/utf8-bytes ^String (c/siwe-message payload))
           sig   (let [s (doto (Signature/getInstance "Ed25519") (.initSign (:private-key id)))]
                   (.update s msg) (.sign s))]
       (is (c/verify? (:public-key id) msg sig)))))
@@ -38,7 +38,7 @@
         cacao (c/mint id {:cap :cap/transact :scope "teian"}
                       {:aud "https://kotobase.net" :nonce "n2"
                        :issued-at "2026-07-06T00:00:00Z" :expiry "2026-07-06T01:00:00Z"})
-        bytes (.decode (Base64/getDecoder) cacao)]
+        bytes (kbytes/base64-decode-bytes cacao)]
     (is (= 0xA3 (bit-and (aget bytes 0) 0xff)) "top-level CBOR is map(3) = {h,p,s}")
     (is (pos? (count cacao)))))
 
@@ -55,7 +55,7 @@
           b  (c/load-or-create-identity! p)]
       (is (= (:did a) (:did b)))
       (is (= (:graph a) (:graph b)) "stable per-actor graph across runs")
-      (.delete (java.io.File. p)))))
+      (kio/delete (kio/file p)))))
 
 (deftest resources-encode-capability-and-graph
   (is (= ["kotoba://op/datom:read" "kotoba://graph/teian"]
