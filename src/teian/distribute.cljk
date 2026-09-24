@@ -23,7 +23,7 @@
   `attachments` array directly, per Resend's documented wire format, instead
   of reinventing the rest of the request (from/to/subject/url/auth all still
   come from `mailer.core`/`mail.message`)."
-  (:require [json.compat :as json]
+  (:require [kotoba.bytes :as kbytes] [json.compat :as json]
             [kotoba.lang.text :as str]
             [mail.message :as message]
             [mailer.core :as mailer]))
@@ -64,7 +64,7 @@
         (f (pr-str content)))
       (catch Exception _ nil))))
 
-(defn- base64 [^bytes bs] (.encodeToString (java.util.Base64/getEncoder) bs))
+(defn- base64 [^bytes bs] (kbytes/base64-encode bs))
 
 (defn- deck-title [content]
   (or (:slides/title content) (:slides/id content) "deck"))

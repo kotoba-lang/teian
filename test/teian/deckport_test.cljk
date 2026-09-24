@@ -10,7 +10,7 @@
   the request map, the same fake-http-fn testing shape used across this
   workspace's other real-binding-but-untested clients (e.g.
   tayori.channel.slack)."
-  (:require [kotoba.test :refer [deftest is testing]]
+  (:require [kotoba.bytes :as kbytes] [kotoba.test :refer [deftest is testing]]
             [kotoba.lang.text :as str]
             [langgraph.graph :as g]
             [teian.deckport :as deckport]
@@ -61,7 +61,7 @@
 
 (deftest publish-uses-only-an-explicitly-injected-export-capability
   (let [seen (atom [])
-        exporter (fn [content] (swap! seen conj content) (.getBytes "pptx" "UTF-8"))
+        exporter (fn [content] (swap! seen conj content) (kbytes/utf8-bytes "pptx"))
         distributed (atom nil)
         dp (deckport/mock-deckport (atom {}) #(reset! distributed %) exporter)
         art (model/artifact "a1" "gftdcojp/cloud-itonami" "T")
