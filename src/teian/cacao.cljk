@@ -14,7 +14,7 @@
   actor's own DID = graph owner) is authorized by construction — no owner
   hand-off, no shared token, no coordination-server-issued auth-key.
   Use `load-or-create-identity!` to bootstrap/persist the actor's identity."
-  (:require [clojure.edn :as edn]
+  (:require [kotoba.lang.edn :as edn]
             [kotoba.lang.text :as str]
             [ed25519.core :as ed25519]
             [ipns.core :as ipns])
