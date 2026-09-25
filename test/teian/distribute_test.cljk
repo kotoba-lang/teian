@@ -4,7 +4,7 @@
   transport convention) — NOT hitting the real network. The one real live
   send this feature needs is a manual, one-time verification step, never
   part of this suite."
-  (:require [kotoba.test :refer [deftest is testing]]
+  (:require [kotoba.lang.error :as kerror] [kotoba.test :refer [deftest is testing]]
             [slides.model :as slides]
             [teian.distribute :as distribute]))
 
@@ -47,14 +47,14 @@
 
 (deftest send-deck-via-resend-throws-on-non-2xx
   (is (thrown-with-msg?
-       clojure.lang.ExceptionInfo #"Resend send failed"
+       kerror/ExceptionInfo #"Resend send failed"
        (distribute/send-deck-via-resend!
         {:from "ops@teian.example" :to "b@example.com" :subject "x" :text "y" :token "t"
          :http-fn (fn [_] {:status 422 :body "{\"message\":\"invalid\"}"})}))))
 
 (deftest resend-distribute-fn-requires-from
   (is (thrown-with-msg?
-       clojure.lang.ExceptionInfo #"requires :from"
+       kerror/ExceptionInfo #"requires :from"
        (distribute/resend-distribute-fn {}))))
 
 (deftest resend-distribute-fn-sends-with-real-pptx-export-and-returns-delivery-tool
